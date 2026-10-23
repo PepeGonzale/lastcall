@@ -1,0 +1,26 @@
+:root {
+  --ink: #09090b;
+  --ink-2: #0d0d10;
+  --panel: #111114;
+  --panel-2: #16161b;
+  --line: rgba(244, 241, 234, 0.09);
+  --line-strong: rgba(244, 241, 234, 0.18);
+  --paper: #f4f1ea;
+  --muted: #8d887c;
+  --muted-2: #605c53;
+  --gold: #e2b25a;
+  --gold-bright: #f5d18a;
+  --gold-soft: rgba(226, 178, 90, 0.12);
+  --red: #ff6b63;
+  --red-soft: rgba(255, 107, 99, 0.12);
+  --green: #78e0a4;
+  --green-soft: rgba(120, 224, 164, 0.12);
+
+  --font-display: 'Instrument Serif', 'Times New Roman', serif;
+  --font-ui: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --radius: 14px;
+  --gap: 18px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
