@@ -1,5 +1,7 @@
 # LastCall
 
+[![ci](https://github.com/PepeGonzale/lastcall/actions/workflows/ci.yml/badge.svg)](https://github.com/PepeGonzale/lastcall/actions/workflows/ci.yml)
+
 **A live auction engine built to prove one thing: a duplicated or reordered event must never
 cost anyone money.**
 
@@ -156,3 +158,7 @@ docs/screenshot.png       the UI after a storm, a duplicate, a gap and a parked 
 - [ ] `pnpm rebuild -- --verify` reports `0 mismatch(es)`.
 - [ ] The banana test: kill the consumer, keep bidding, restart it — the price is right and the
       counters show no duplicates.
+
+---
+
+Built by [José Ramón González de Vega](https://github.com/PepeGonzale).

@@ -52,6 +52,10 @@ export default function App() {
       <footer className="footnote">
         <span>event-sourced · postgres log + outbox · idempotent inbox · per-lot advisory lock</span>
         <span>
+          <a href="https://github.com/PepeGonzale/lastcall" target="_blank" rel="noreferrer">
+            source
+          </a>{' '}
+          ·{' '}
           <a href="/api/health" target="_blank" rel="noreferrer">
             api health
           </a>{' '}
