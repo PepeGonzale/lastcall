@@ -1,15 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '../i18n/index.jsx';
 import { amountOnly, centsFromInput, euro } from '../lib/format.js';
 
-const REASONS = {
-  lot_closed: 'the hammer already fell',
-  too_late: 'the deadline moved, this bid arrived too late',
-  below_minimum: 'below the minimum',
-  invalid_amount: 'the amount is not a valid price',
-  unknown_lot: 'unknown lot',
-};
-
 export default function BidForm({ lot, onBid, onStorm, disabled }) {
+  const { t } = useI18n();
   const [bidder, setBidder] = useState(() => localStorage.getItem('lastcall.bidder') ?? 'you');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
@@ -29,9 +23,9 @@ export default function BidForm({ lot, onBid, onStorm, disabled }) {
   const parsed = centsFromInput(amount);
   const belowMinimum = parsed !== null && parsed < minimum;
 
-  async function send(amountCents, label) {
+  async function send(amountCents) {
     if (!lot || amountCents === null) {
-      setFeedback({ tone: 'error', text: 'type an amount first' });
+      setFeedback({ tone: 'error', text: t('bid.typeAmount') });
       return;
     }
     setBusy(true);
@@ -41,13 +35,15 @@ export default function BidForm({ lot, onBid, onStorm, disabled }) {
       if (result.accepted) {
         setFeedback({
           tone: 'ok',
-          text: `${label} accepted · ${euro(amountCents)}${result.extended ? ' · deadline extended' : ''}`,
+          text: t(result.extended ? 'bid.acceptedExtended' : 'bid.accepted', { amount: euro(amountCents) }),
         });
       } else {
-        const reason = REASONS[result.reason] ?? result.reason;
+        const reason = t(`reason.${result.reason}`);
         setFeedback({
           tone: 'error',
-          text: `refused: ${reason}${result.minimum ? ` (${euro(result.minimum)})` : ''}`,
+          text: result.minimum
+            ? t('bid.refusedMin', { reason, amount: euro(result.minimum) })
+            : t('bid.refused', { reason }),
         });
         if (result.minimum) setAmount(amountOnly(result.minimum));
       }
@@ -66,9 +62,10 @@ export default function BidForm({ lot, onBid, onStorm, disabled }) {
       const result = await onStorm(bidder.trim() || 'you', minimum, 25);
       setFeedback({
         tone: result.accepted === 1 ? 'ok' : 'error',
-        text: result.accepted === 1
-          ? `25 simultaneous bids · 1 accepted, ${result.rejected} refused by the lock`
-          : `25 simultaneous bids · ${result.accepted} accepted (expected exactly 1)`,
+        text:
+          result.accepted === 1
+            ? t('bid.stormOk', { rejected: result.rejected })
+            : t('bid.stormBad', { accepted: result.accepted }),
       });
     } catch (error) {
       setFeedback({ tone: 'error', text: error.message });
@@ -78,21 +75,21 @@ export default function BidForm({ lot, onBid, onStorm, disabled }) {
   }
 
   return (
-    <section className="panel" aria-label="Place a bid">
+    <section className="panel" aria-label={t('bid.panel')}>
       <div className="panel__head">
-        <span className="panel__title">place a bid</span>
-        <span className="panel__title">min {lot ? euro(minimum) : '—'}</span>
+        <span className="panel__title">{t('bid.panel')}</span>
+        <span className="panel__title">{lot ? t('bid.min', { amount: euro(minimum) }) : '—'}</span>
       </div>
       <div className="panel__body">
         <form
           className="bidform"
           onSubmit={(event) => {
             event.preventDefault();
-            void send(parsed, 'bid');
+            void send(parsed);
           }}
         >
           <label className="field">
-            <span className="field__label">bidder</span>
+            <span className="field__label">{t('bid.bidder')}</span>
             <input
               className="input"
               value={bidder}
@@ -104,7 +101,7 @@ export default function BidForm({ lot, onBid, onStorm, disabled }) {
           </label>
 
           <label className="field">
-            <span className="field__label">amount (EUR)</span>
+            <span className="field__label">{t('bid.amount')}</span>
             <input
               className="input"
               value={amount}
@@ -117,28 +114,28 @@ export default function BidForm({ lot, onBid, onStorm, disabled }) {
           </label>
 
           <button className="btn btn--primary" type="submit" disabled={busy || isClosed || belowMinimum}>
-            {isClosed ? 'closed' : busy ? 'sending' : 'bid'}
+            {isClosed ? t('bid.closed') : busy ? t('bid.sending') : t('bid.submit')}
           </button>
         </form>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <div className="btn-row">
           <button
             type="button"
             className="btn btn--ghost"
             disabled={busy || isClosed}
-            onClick={() => void send(minimum, 'snipe bid')}
-            title="Bid the exact minimum. Inside the last 10 seconds this triggers an anti-snipe extension."
+            onClick={() => void send(minimum)}
+            title={t('bid.snipeHint')}
           >
-            snipe at minimum
+            {t('bid.snipe')}
           </button>
           <button
             type="button"
             className="btn btn--ghost"
             disabled={busy || isClosed}
             onClick={() => void storm()}
-            title="25 concurrent bids at the same price. Exactly one can win."
+            title={t('bid.stormHint')}
           >
-            bid storm ×25
+            {t('bid.storm')}
           </button>
           <button
             type="button"
@@ -146,7 +143,7 @@ export default function BidForm({ lot, onBid, onStorm, disabled }) {
             disabled={busy || !lot || isClosed}
             onClick={() => setAmount(amountOnly(minimum))}
           >
-            reset to min
+            {t('bid.resetMin')}
           </button>
         </div>
 
@@ -155,9 +152,7 @@ export default function BidForm({ lot, onBid, onStorm, disabled }) {
             {feedback.text}
           </p>
         ) : (
-          <p className="hint">
-            Idempotency key is generated per click, so a retry can never place a second bid.
-          </p>
+          <p className="hint">{t('bid.hint')}</p>
         )}
       </div>
     </section>

@@ -9,7 +9,13 @@ An event-sourced write path on Postgres, an idempotent consumer, anti-snipe dead
 derived state instead of timers, and a UI with a chaos panel so the failure handling is visible
 instead of claimed.
 
-![LastCall UI: live auction, bid tape, chaos panel and time-travel replay](docs/screenshot.png)
+| Dark | Light |
+| --- | --- |
+| ![Dark theme: the intro, the guided tour and the chaos panel](docs/screenshot-dark.png) | ![Light theme after the guided tour, in Spanish](docs/screenshot-light.png) |
+
+The UI ships in **English and Spanish** and in **dark and light**, both persisted per visitor.
+The screen is explained by an intro and a five-step guided tour, because a demo you have to
+reverse-engineer is a demo nobody reads.
 
 ```
 50 simultaneous bids for the same lot  →  1 accepted, 49 refused, 0 double charges
@@ -28,8 +34,9 @@ pnpm start          # migrates, seeds and listens on http://127.0.0.1:3333
 pnpm build          # optional: builds the UI into web/dist and serves it
 ```
 
-Open <http://127.0.0.1:3333>, place a bid, then open the **chaos panel** and press every lever.
-Each one prints what the engine did about it.
+Open <http://127.0.0.1:3333>. The intro explains the screen in three lines, and the **guided tour**
+breaks the system four times on purpose, one plain-language sentence per result. Below it, the
+**chaos panel** exposes the same failures one lever at a time.
 
 For frontend work, `pnpm web:dev` runs Vite on `:5173` with the API and WebSocket proxied.
 
@@ -51,6 +58,7 @@ pnpm rebuild -- --verify  # rebuild snapshots from the log and compare with the 
 | Read model is disposable | projection rebuilt by folding the log | `pnpm rebuild -- --verify` → `0 mismatch(es)` |
 | Deadline is derived, never a timer | `lot.extended` events are committed with the bid | "Snipe at minimum" inside 10s → badge + deadline jumps |
 | A bad event cannot stall a lot | poison events are parked in `dead_letters` and acknowledged | "Poison event" lever → `parked` counter, next bid still lands |
+| The UI never hardcodes a colour | one token set per theme, components only read tokens | switch dark/light: nothing needs a second stylesheet |
 
 ## Architecture
 
@@ -73,7 +81,9 @@ pnpm rebuild -- --verify  # rebuild snapshots from the log and compare with the 
   depend on interfaces, never on `pg`.
 - **`src/infra`** — Postgres adapters: event log, unit of work, projection store, read model.
 - **`src/http`** — Fastify routes, Zod validation at the boundary, WebSocket fan-out.
-- **`web`** — React container/presentational split, one `useAuction` reducer, design tokens in CSS.
+- **`web`** — React container/presentational split, one `useAuction` reducer, a `useTimeline`
+  hook the tour and the scrubber share, design tokens per theme, and two dictionaries with
+  identical keys (a test would catch a missing translation, and `en` is the fallback).
 
 ### The five decisions that matter
 
@@ -93,9 +103,9 @@ pnpm rebuild -- --verify  # rebuild snapshots from the log and compare with the 
 | Out of order | delivers `position + 3` first | guard refuses, writes `projector_gaps`, projection untouched |
 | Poison event | appends a malformed bid the domain rejects | parked in `dead_letters`, partition advances, the next bid is unaffected |
 | Lag 1.5s / event | slows the projector | `log` cursor falls behind `head` while bids keep committing |
-| Kill consumer | pauses the projector | bids still land in the log; the UI stops updating |
-| Restart consumer | resumes from the durable cursor | projection catches up, nothing re-applied |
-| Rebuild projection | truncates the read model | it is folded back from the log; `0 mismatch` on verify |
+| Stop reader | pauses the projector | bids still land in the log; the screen stops updating |
+| Restart reader | resumes from the durable cursor | projection catches up, nothing re-applied |
+| Rebuild screen | truncates the read model | it is folded back from the log; `0 mismatch` on verify |
 
 ## Measured, not claimed
 
@@ -146,9 +156,11 @@ src/app/place-bid.ts      command: idempotency, decision, append
 src/app/projector.ts      consumer: contiguity guard, inbox, catch-up, chaos levers
 src/app/replay.ts         fold the log up to any point in time
 src/infra/postgres/*      log, unit of work, projection, read model
-web/src                   UI: hero, tape, chaos panel, time travel, pipeline strip
+web/src                   UI: intro, guided tour, hero, tape, chaos panel, time travel
+web/src/i18n              en/es dictionaries and the provider
+web/src/theme.jsx         dark/light tokens, persisted, applied before first paint
 test/                     domain + engine tests (real Postgres)
-docs/screenshot.png       the UI after a storm, a duplicate, a gap and a parked event
+docs/screenshot-*.png     the UI in both themes
 ```
 
 ## Reviewer checklist

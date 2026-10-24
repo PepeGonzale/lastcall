@@ -1,21 +1,4 @@
 :root {
-  --ink: #09090b;
-  --ink-2: #0d0d10;
-  --panel: #111114;
-  --panel-2: #16161b;
-  --line: rgba(244, 241, 234, 0.09);
-  --line-strong: rgba(244, 241, 234, 0.18);
-  --paper: #f4f1ea;
-  --muted: #8d887c;
-  --muted-2: #605c53;
-  --gold: #e2b25a;
-  --gold-bright: #f5d18a;
-  --gold-soft: rgba(226, 178, 90, 0.12);
-  --red: #ff6b63;
-  --red-soft: rgba(255, 107, 99, 0.12);
-  --green: #78e0a4;
-  --green-soft: rgba(120, 224, 164, 0.12);
-
   --font-display: 'Instrument Serif', 'Times New Roman', serif;
   --font-ui: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
@@ -23,4 +6,83 @@
   --radius: 14px;
   --gap: 18px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Dark is the auction house at night: ink, brass, lamplight. */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #09090b;
+  --bg-2: #0d0d10;
+  --surface: #111114;
+  --surface-2: #16161b;
+  --surface-3: #1b1b21;
+
+  --text: #f4f1ea;
+  --text-rgb: 244, 241, 234;
+  --text-muted: #8d887c;
+  --text-faint: #605c53;
+
+  --line: rgba(244, 241, 234, 0.09);
+  --line-strong: rgba(244, 241, 234, 0.18);
+
+  --accent: #e2b25a;
+  --accent-rgb: 226, 178, 90;
+  --accent-strong: #f5d18a;
+  --accent-soft: rgba(226, 178, 90, 0.12);
+  --accent-line: rgba(226, 178, 90, 0.45);
+
+  --danger: #ff6b63;
+  --danger-rgb: 255, 107, 99;
+  --danger-soft: rgba(255, 107, 99, 0.12);
+
+  --success: #78e0a4;
+  --success-rgb: 120, 224, 164;
+  --success-soft: rgba(120, 224, 164, 0.12);
+
+  --input-bg: rgba(0, 0, 0, 0.35);
+  --input-bg-focus: rgba(226, 178, 90, 0.05);
+  --bg-blur: rgba(9, 9, 11, 0.9);
+  --grain-opacity: 0.035;
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* Light is the same room with the curtains open: paper, ink, oxblood. */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f4efe4;
+  --bg-2: #ece4d4;
+  --surface: #fffdf7;
+  --surface-2: #f8f3e7;
+  --surface-3: #f1e9d8;
+
+  --text: #1a1712;
+  --text-rgb: 26, 23, 18;
+  --text-muted: #6b6457;
+  --text-faint: #8c8474;
+
+  --line: rgba(26, 23, 18, 0.12);
+  --line-strong: rgba(26, 23, 18, 0.26);
+
+  --accent: #a1741a;
+  --accent-rgb: 161, 116, 26;
+  --accent-strong: #7c5510;
+  --accent-soft: rgba(161, 116, 26, 0.12);
+  --accent-line: rgba(161, 116, 26, 0.5);
+
+  --danger: #b3261e;
+  --danger-rgb: 179, 38, 30;
+  --danger-soft: rgba(179, 38, 30, 0.09);
+
+  --success: #1c7140;
+  --success-rgb: 28, 113, 64;
+  --success-soft: rgba(28, 113, 64, 0.1);
+
+  --input-bg: rgba(26, 23, 18, 0.04);
+  --input-bg-focus: rgba(161, 116, 26, 0.07);
+  --bg-blur: rgba(244, 239, 228, 0.92);
+  --grain-opacity: 0.02;
+  --shadow: 0 16px 34px rgba(60, 46, 20, 0.1);
 }

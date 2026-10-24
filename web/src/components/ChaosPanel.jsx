@@ -1,109 +1,90 @@
+import { useI18n } from '../i18n/index.jsx';
+
 const LEVERS = [
-  {
-    kind: 'duplicate',
-    name: 'Duplicate delivery',
-    note: 're-publish the last event',
-    hint: 'A broker redelivery. The inbox must absorb it and the projection must not move.',
-  },
-  {
-    kind: 'reorder',
-    name: 'Out of order',
-    note: 'deliver position +3 first',
-    hint: 'A partition violation. The contiguity guard must refuse it instead of applying it.',
-  },
-  {
-    kind: 'poison',
-    name: 'Poison event',
-    note: 'append a malformed row',
-    hint: 'The log accepts it, the domain cannot. It must be parked in dead_letters instead of stalling the partition.',
-  },
-  {
-    kind: 'lag',
-    name: 'Lag 1.5s / event',
-    note: 'slow the projector',
-    hint: 'Bids keep committing to the log while the read model falls behind. Watch log vs cursor.',
-  },
-  {
-    kind: 'pause',
-    name: 'Kill consumer',
-    note: 'stop the projector',
-    hint: 'Nothing is lost: the cursor is durable and the restart replays from it.',
-  },
-  {
-    kind: 'resume',
-    name: 'Restart consumer',
-    note: 'catch up from offset',
-    hint: 'It replays what it missed, in order, exactly once per event.',
-  },
-  {
-    kind: 'rebuild',
-    name: 'Rebuild projection',
-    note: 'drop the read model',
-    hint: 'The read model is deleted and rebuilt from the log. If it was wrong, it stops being wrong.',
-  },
+  { kind: 'duplicate', name: 'chaos.duplicate', note: 'chaos.duplicateNote' },
+  { kind: 'reorder', name: 'chaos.reorder', note: 'chaos.reorderNote' },
+  { kind: 'poison', name: 'chaos.poison', note: 'chaos.poisonNote' },
+  { kind: 'lag', name: 'chaos.lag', note: 'chaos.lagNote' },
+  { kind: 'pause', name: 'chaos.kill', note: 'chaos.killNote' },
+  { kind: 'resume', name: 'chaos.restart', note: 'chaos.restartNote' },
+  { kind: 'rebuild', name: 'chaos.rebuild', note: 'chaos.rebuildNote' },
 ];
 
 export default function ChaosPanel({ projector, counters, notes, onChaos }) {
+  const { t } = useI18n();
   const lagging = (projector?.lagMs ?? 0) > 0;
   const paused = projector?.paused === true;
 
   return (
-    <section className="panel" aria-label="Chaos panel">
+    <section className="panel" aria-label={t('chaos.panel')}>
       <div className="panel__head">
-        <span className="panel__title">chaos panel</span>
-        <span className="panel__title">inject failure, not optimism</span>
+        <span className="panel__title">{t('chaos.panel')}</span>
+        <span className="panel__title">{t('chaos.sub')}</span>
       </div>
 
       <div className="panel__body">
-        <div className="chaos-grid">
-          {LEVERS.map((lever) => {
-            const active =
-              (lever.kind === 'lag' && lagging) || (lever.kind === 'pause' && paused);
-            return (
-              <button
-                key={lever.kind}
-                type="button"
-                className="lever"
-                data-active={active}
-                title={lever.hint}
-                onClick={() => onChaos(lever.kind === 'lag' && lagging ? 'unlag' : lever.kind)}
-              >
-                <span className="lever__name">{lever.kind === 'lag' && lagging ? 'Real time' : lever.name}</span>
-                <span className="lever__note">{lever.kind === 'lag' && lagging ? 'remove the lag' : lever.note}</span>
-              </button>
-            );
-          })}
-        </div>
-
         <div className="counter-row">
           <span className="chip">
-            duplicates absorbed <b>{counters?.duplicateDeliveries ?? 0}</b>
+            {t('chaos.duplicatesAbsorbed')} <b>{counters?.duplicateDeliveries ?? 0}</b>
           </span>
           <span className="chip">
-            gaps caught <b>{counters?.gaps ?? 0}</b>
+            {t('chaos.gapsCaught')} <b>{counters?.gaps ?? 0}</b>
           </span>
-          <span className="chip" title="Malformed events parked without stalling the partition">
-            parked <b>{counters?.deadLetters ?? projector?.deadLetters ?? 0}</b>
+          <span className="chip" title={t('chaos.poisonNote')}>
+            {t('chaos.parked')} <b>{counters?.deadLetters ?? projector?.deadLetters ?? 0}</b>
           </span>
-          <span className="chip">
-            projection <b>{paused ? 'stopped' : 'live'}</b>
+          <span className={`chip ${paused ? 'chip--warn' : ''}`}>
+            {t('chaos.projection')} <b>{paused ? t('chaos.stopped') : t('chaos.live')}</b>
           </span>
-          <button type="button" className="chip" onClick={() => onChaos('reset')}>
-            reset demo
+          <button
+            type="button"
+            className="btn btn--ghost btn--tiny counter-row__action"
+            onClick={() => onChaos('reset')}
+          >
+            {t('chaos.reset')}
           </button>
         </div>
 
         <div className="chaos-log" role="log" aria-live="polite">
           {notes.length === 0 ? (
-            <div className="chaos-log__line">no chaos injected yet.</div>
+            <div className="chaos-log__line">{t('chaos.empty')}</div>
           ) : (
             notes.map((note) => (
               <div key={note.id} className="chaos-log__line" data-tone={note.tone}>
-                › <b>{note.text}</b>
+                › <b>{t(note.code, note.params)}</b>
               </div>
             ))
           )}
         </div>
+
+        <details className="advanced">
+          <summary>
+            <span>{t('chaos.advanced')}</span>
+            <span aria-hidden="true">{LEVERS.length}</span>
+          </summary>
+
+          <div className="chaos-grid">
+            {LEVERS.map((lever) => {
+              const active = (lever.kind === 'lag' && lagging) || (lever.kind === 'pause' && paused);
+              return (
+                <button
+                  key={lever.kind}
+                  type="button"
+                  className="lever"
+                  data-active={active}
+                  onClick={() => onChaos(lever.kind === 'lag' && lagging ? 'unlag' : lever.kind)}
+                >
+                  <span className="lever__name">
+                    {lever.kind === 'lag' && lagging ? t('chaos.realtime') : t(lever.name)}
+                  </span>
+                  <span className="lever__note">
+                    {lever.kind === 'lag' && lagging ? t('chaos.realtimeNote') : t(lever.note)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </details>
       </div>
     </section>
   );

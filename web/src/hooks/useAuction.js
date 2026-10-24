@@ -17,7 +17,7 @@ const initial = {
 
 function pushNote(state, note) {
   return {
-    notes: [{ id: state.nextId, ...note }, ...state.notes].slice(0, 40),
+    notes: [{ id: state.nextId, tone: 'warn', ...note }, ...state.notes].slice(0, 40),
     nextId: state.nextId + 1,
   };
 }
@@ -39,6 +39,7 @@ function tapeFromDetail(detail) {
     amount: rejection.amount,
     at: rejection.at,
     reason: rejection.reason,
+    count: 1,
   }));
   return [...bids, ...rejections].sort((a, b) => b.at - a.at).slice(0, MAX_TAPE);
 }
@@ -83,32 +84,31 @@ function reducer(state, action) {
 
     case 'detail': {
       if (action.lotId !== state.selectedLotId) return state;
-      return {
-        ...state,
-        lot: action.detail.lot,
-        tape: tapeFromDetail(action.detail),
-      };
+      return { ...state, lot: action.detail.lot, tape: tapeFromDetail(action.detail) };
     }
 
     case 'lot.updated': {
       const lot = action.lot;
-      const lots = state.lots.map((candidate) => (candidate.lotId === lot.lotId ? lot : candidate));
-      const exists = lots.some((candidate) => candidate.lotId === lot.lotId);
+      const exists = state.lots.some((candidate) => candidate.lotId === lot.lotId);
+      const lots = exists
+        ? state.lots.map((candidate) => (candidate.lotId === lot.lotId ? lot : candidate))
+        : [lot, ...state.lots];
       return {
         ...state,
-        lots: exists ? lots : [lot, ...lots],
+        lots,
         lot: state.selectedLotId === lot.lotId ? lot : state.lot,
       };
     }
 
     case 'bid.placed': {
-      if (action.message.lotId !== state.selectedLotId) return state;
       const message = action.message;
+      if (message.lotId !== state.selectedLotId) return state;
+      const lots = message.lot
+        ? state.lots.map((candidate) => (candidate.lotId === message.lot.lotId ? message.lot : candidate))
+        : state.lots;
       return {
         ...state,
-        lots: message.lot
-          ? state.lots.map((candidate) => (candidate.lotId === message.lot.lotId ? message.lot : candidate))
-          : state.lots,
+        lots,
         lot: message.lot ?? state.lot,
         tape: [
           {
@@ -127,8 +127,8 @@ function reducer(state, action) {
     }
 
     case 'bid.rejected': {
-      if (action.message.lotId !== state.selectedLotId) return state;
       const message = action.message;
+      if (message.lotId !== state.selectedLotId) return state;
       const [head] = state.tape;
 
       // A storm produces dozens of identical refusals. Collapse them into one
@@ -183,6 +183,16 @@ function pickDefaultLot(lots) {
   return (open[0] ?? lots[0])?.lotId ?? null;
 }
 
+function refreshCounters(dispatch) {
+  api.chaos
+    .state()
+    .then((snapshot) => {
+      dispatch({ type: 'counters', counters: snapshot.counters });
+      dispatch({ type: 'projector', payload: snapshot.projector });
+    })
+    .catch(() => {});
+}
+
 export function useAuction() {
   const [state, dispatch] = useReducer(reducer, initial);
   const socketRef = useRef(null);
@@ -210,7 +220,7 @@ export function useAuction() {
         } catch {
           return;
         }
-        handleMessage(message, dispatch, refreshCounters);
+        handleMessage(message, dispatch);
       };
 
       socket.onclose = () => {
@@ -254,12 +264,11 @@ export function useAuction() {
   const placeBid = useCallback(
     async (bidder, amount) => {
       if (!state.selectedLotId) throw new ApiError('No lot selected', null, 0);
-      const result = await api.bid(state.selectedLotId, {
+      return api.bid(state.selectedLotId, {
         bidder,
         amount,
         idempotencyKey: crypto.randomUUID(),
       });
-      return result;
     },
     [state.selectedLotId],
   );
@@ -284,82 +293,71 @@ export function useAuction() {
     [state.selectedLotId],
   );
 
+  const note = useCallback(
+    (code, params, tone = 'warn') => dispatch({ type: 'note', note: { code, params, tone } }),
+    [],
+  );
+
   const chaos = useCallback(
     async (kind) => {
       const lotId = state.selectedLotId;
       try {
         if (kind === 'duplicate' && lotId) {
           const result = await api.chaos.redeliver(lotId);
-          dispatch({
-            type: 'note',
-            note: {
-              tone: 'good',
-              text: `redelivered position ${result.position} → inbox answered "${result.result}"; no second bid`,
-            },
-          });
+          note('note.redelivered', { position: result.position }, 'good');
           dispatch({ type: 'counters', counters: result.counters });
           return result;
         }
 
         if (kind === 'reorder' && lotId) {
           const result = await api.chaos.reorder(lotId);
-          dispatch({
-            type: 'note',
-            note: result.detected
-              ? {
-                  tone: 'good',
-                  text: `guard refused position ${result.received} (expected ${result.expected}); projection untouched`,
-                }
-              : { tone: 'bad', text: 'guard did not detect the reordering' },
-          });
+          if (result.detected) {
+            note('note.reorderCaught', { received: result.received, expected: result.expected }, 'good');
+          } else {
+            note('note.reorderMissed', {}, 'bad');
+          }
           dispatch({ type: 'counters', counters: result.counters });
           return result;
         }
 
         if (kind === 'poison' && lotId) {
           const result = await api.chaos.poison(lotId);
-          dispatch({
-            type: 'note',
-            note: {
-              tone: 'good',
-              text: `appended a malformed event at position ${result.position}; the consumer must park it`,
-            },
-          });
+          note('note.poisonAppended', { position: result.position }, 'good');
           dispatch({ type: 'counters', counters: result.counters });
           return result;
         }
 
         if (kind === 'lag') {
           const result = await api.chaos.lag(1_500);
-          dispatch({ type: 'note', note: { tone: 'warn', text: 'projector slowed to 1.5s per event; watch the lag' } });
+          note('note.lagOn');
           dispatch({ type: 'projector', payload: result.projector });
           return result;
         }
 
         if (kind === 'unlag') {
           const result = await api.chaos.lag(0);
-          dispatch({ type: 'note', note: { tone: 'good', text: 'projector back to real time' } });
+          note('note.lagOff', {}, 'good');
           dispatch({ type: 'projector', payload: result.projector });
           return result;
         }
 
         if (kind === 'pause') {
           const result = await api.chaos.pause();
-          dispatch({ type: 'note', note: { tone: 'warn', text: 'consumer killed. Bids keep landing in the log.' } });
+          note('note.paused');
           dispatch({ type: 'projector', payload: result.projector });
           return result;
         }
 
         if (kind === 'resume') {
           const result = await api.chaos.resume();
-          dispatch({ type: 'note', note: { tone: 'good', text: 'consumer restarted; catching up from its offset' } });
+          note('note.resumed', {}, 'good');
           dispatch({ type: 'projector', payload: result.projector });
           return result;
         }
 
         if (kind === 'rebuild') {
           const result = await api.chaos.rebuild();
-          dispatch({ type: 'note', note: { tone: 'good', text: 'read model dropped and rebuilt from the log' } });
+          note('note.rebuilt', {}, 'good');
           dispatch({ type: 'projector', payload: result.projector });
           dispatch({ type: 'counters', counters: { projectionResets: 1 } });
           return result;
@@ -367,15 +365,8 @@ export function useAuction() {
 
         if (kind === 'close') {
           const result = await api.chaos.closeSweep();
-          dispatch({
-            type: 'note',
-            note: {
-              tone: result.closed.length ? 'good' : 'warn',
-              text: result.closed.length
-                ? `closed ${result.closed.length} lot(s) at the current deadline`
-                : 'nothing due: the deadline has not passed',
-            },
-          });
+          if (result.closed.length) note('note.closed', { count: result.closed.length }, 'good');
+          else note('note.nothingDue');
           return result;
         }
 
@@ -384,22 +375,17 @@ export function useAuction() {
           dispatch({ type: 'reset' });
           const { lots } = await api.lots();
           dispatch({ type: 'lots', lots });
-          dispatch({ type: 'note', note: { tone: 'good', text: 'demo reset: log truncated, seed applied again' } });
+          note('note.reset', {}, 'good');
           return null;
         }
       } catch (error) {
-        dispatch({
-          type: 'note',
-          note: { tone: 'bad', text: error instanceof Error ? error.message : 'chaos request failed' },
-        });
+        note('note.error', { message: error instanceof Error ? error.message : 'unknown' }, 'bad');
         throw error;
       }
       return null;
     },
-    [state.selectedLotId],
+    [state.selectedLotId, note],
   );
-
-  const note = useCallback((text, tone = 'warn') => dispatch({ type: 'note', note: { text, tone } }), []);
 
   const value = useMemo(
     () => ({ state, selectLot, placeBid, storm, chaos, note }),
@@ -409,17 +395,7 @@ export function useAuction() {
   return value;
 }
 
-function refreshCounters(dispatch) {
-  api.chaos
-    .state()
-    .then((snapshot) => {
-      dispatch({ type: 'counters', counters: snapshot.counters });
-      dispatch({ type: 'projector', payload: snapshot.projector });
-    })
-    .catch(() => {});
-}
-
-function handleMessage(message, dispatch, refresh) {
+function handleMessage(message, dispatch) {
   switch (message.type) {
     case 'snapshot':
       dispatch({ type: 'snapshot', payload: message });
@@ -439,7 +415,8 @@ function handleMessage(message, dispatch, refresh) {
         type: 'note',
         note: {
           tone: 'warn',
-          text: `anti-snipe: deadline moved to ${new Date(message.endsAt).toLocaleTimeString('en-GB', { hour12: false })}`,
+          code: 'note.extended',
+          params: { time: new Date(message.endsAt).toLocaleTimeString() },
         },
       });
       break;
@@ -448,32 +425,35 @@ function handleMessage(message, dispatch, refresh) {
         type: 'note',
         note: {
           tone: 'good',
-          text: `lot closed · ${message.winner ?? 'unsold'}`,
+          code: 'note.lotClosed',
+          params: { winner: message.winner ?? '—' },
         },
       });
-      break;
-    case 'projector':
-      dispatch({ type: 'projector', payload: message });
       break;
     case 'dead-letter':
       dispatch({
         type: 'note',
         note: {
           tone: 'warn',
-          text: `poison event parked: ${message.partition}#${message.position}`,
+          code: 'note.poisonParked',
+          params: { partition: message.partition, position: message.position },
         },
       });
-      refresh(dispatch);
+      refreshCounters(dispatch);
       break;
     case 'gap':
       dispatch({
         type: 'note',
         note: {
           tone: 'good',
-          text: `gap detected on ${message.partition}: expected ${message.expected}, got ${message.received}`,
+          code: 'note.gap',
+          params: { partition: message.partition, expected: message.expected, received: message.received },
         },
       });
-      refresh(dispatch);
+      refreshCounters(dispatch);
+      break;
+    case 'projector':
+      dispatch({ type: 'projector', payload: message });
       break;
     default:
       break;
